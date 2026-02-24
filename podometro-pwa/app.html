@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Podómetro</title>
+<meta name="theme-color" content="#0d0d0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-152x152.png">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d0d0d;
+  --surface: #161616;
+  --surface2: #1e1e1e;
+  --border: #2a2a2a;
+  --accent: #c8f060;
+  --accent-dim: rgba(200,240,96,0.12);
+  --accent2: #60f0c8;
+  --text: #f0f0f0;
+  --muted: #555;
+  --muted2: #888;
+  --danger: #ff6b6b;
+  --warning: #ffb347;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Fondo vivo cuando está activo */
+.bg-pulse {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(200,240,96,0.05) 0%, transparent 70%);
+  transition: opacity 1s;
+  opacity: 0;
+}
+.bg-pulse.active { opacity: 1; animation: bgBreath 3s ease-in-out infinite; }
+@keyframes bgBreath {
+  0%,100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* ---- LAYOUT PRINCIPAL ---- */
+.app {
+  position: relative; z-index: 1;
+  height: 100dvh;
+  display: flex; flex-direction: column;
+  padding-top: max(16px, var(--safe-top));
+  padding-bottom: max(16px, var(--safe-bottom));
+}
+
+/* ---- HEADER ---- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px 16px;
+  flex-shrink: 0;
+}
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 13px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--muted2);
+}
+.logo span { color: var(--accent); }
+
+.status-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 11px; font-weight: 500;
+  letter-spacing: 0.05em; text-transform: uppercase;
+  transition: all 0.4s;
+}
+.status-badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--muted);
+  transition: background 0.4s;
+}
+.status-badge.walking { border-color: rgba(200,240,96,0.3); color: var(--accent); }
+.status-badge.walking .dot { background: var(--accent); animation: blink 1s infinite; }
+.status-badge.vehicle { border-color: rgba(255,179,71,0.3); color: var(--warning); }
+.status-badge.vehicle .dot { background: var(--warning); }
+.status-badge.stationary { border-color: var(--border); color: var(--muted2); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* ---- ÁREA CENTRAL (contador) ---- */
+.center { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; }
+
+.step-ring {
+  position: relative;
+  width: min(260px, 65vw); height: min(260px, 65vw);
+  margin-bottom: 32px;
+}
+.ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-track { fill: none; stroke: var(--surface2); stroke-width: 8; }
+.ring-progress {
+  fill: none; stroke: var(--accent); stroke-width: 8;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1);
+  filter: drop-shadow(0 0 8px rgba(200,240,96,0.5));
+}
+.ring-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.step-count {
+  font-family: 'DM Mono', monospace;
+  font-size: clamp(42px, 12vw, 64px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -2px;
+  transition: transform 0.1s;
+}
+.step-count.bump { transform: scale(1.08); }
+.step-label { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted2); margin-top: 4px; }
+.step-goal { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* ---- MÉTRICAS ---- */
+.metrics {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; width: 100%;
+  margin-bottom: 28px;
+}
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: center;
+  transition: border-color 0.3s;
+}
+.metric-card.time { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; text-align: left; padding: 14px 18px; }
+.metric-val {
+  font-family: 'DM Mono', monospace;
+  font-size: 20px; font-weight: 500;
+  color: var(--text);
+  transition: color 0.3s;
+}
+.metric-card.time .metric-val { font-size: 22px; }
+.metric-unit { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted2); margin-top: 3px; }
+.metric-card.time .metric-unit { font-size: 11px; }
+.metric-icon { font-size: 18px; }
+
+/* ---- BOTÓN PRINCIPAL ---- */
+.btn-wrap { width: 100%; padding: 0 0 4px; }
+
+.btn-main {
+  width: 100%;
+  border: none; border-radius: 18px;
+  padding: 20px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 16px;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.3s, color 0.3s;
+  -webkit-tap-highlight-color: transparent;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  position: relative; overflow: hidden;
+}
+.btn-main.start { background: var(--accent); color: #0d0d0d; }
+.btn-main.pause { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.btn-main.stop  { background: rgba(255,107,107,0.12); color: var(--danger); border: 1px solid rgba(255,107,107,0.2); }
+.btn-main:active { transform: scale(0.97); }
+
+.btn-row { display: flex; gap: 10px; }
+.btn-secondary {
+  flex: 1; border: 1px solid var(--border);
+  background: var(--surface); color: var(--muted2);
+  border-radius: 14px; padding: 16px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700; font-size: 13px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s, border-color 0.2s, color 0.2s;
+}
+.btn-secondary:active { transform: scale(0.97); }
+.btn-secondary.danger:active, .btn-secondary.danger:hover { border-color: rgba(255,107,107,0.4); color: var(--danger); }
+
+/* ---- PANEL DE HISTORIAL ---- */
+.history-panel {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--bg);
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  display: flex; flex-direction: column;
+  padding-top: max(24px, var(--safe-top));
+  padding-bottom: max(24px, var(--safe-bottom));
+}
+.history-panel.open { transform: translateY(0); }
+
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px 20px; flex-shrink: 0;
+}
+.panel-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; }
+.btn-close {
+  width: 36px; height: 36px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 50%; cursor: pointer; color: var(--muted2);
+  font-size: 18px; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.history-list {
+  flex: 1; overflow-y: auto; padding: 0 24px;
+  -webkit-overflow-scrolling: touch;
+}
+.history-list::-webkit-scrollbar { display: none; }
+
+.history-empty {
+  text-align: center; padding: 60px 0;
+  color: var(--muted2); font-size: 14px;
+}
+.history-empty .icon { font-size: 40px; display: block; margin-bottom: 12px; }
+
+.session-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  margin-bottom: 10px;
+  animation: fadeUp 0.3s ease forwards;
+}
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+.session-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.session-date { font-size: 12px; color: var(--muted2); }
+.session-steps { font-family: 'DM Mono', monospace; font-size: 26px; font-weight: 500; line-height: 1; }
+.session-steps span { font-size: 12px; font-weight: 400; color: var(--muted2); margin-left: 4px; }
+
+.session-meta { display: flex; gap: 16px; }
+.session-meta-item { font-size: 12px; color: var(--muted2); }
+.session-meta-item strong { color: var(--text); font-weight: 500; margin-right: 4px; }
+
+/* ---- TOAST ---- */
+.toast {
+  position: fixed; bottom: calc(100px + var(--safe-bottom)); left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 100px; padding: 10px 20px;
+  font-size: 13px; white-space: nowrap;
+  opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 200;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---- PERMISO iOS ---- */
+.permission-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(13,13,13,0.95);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 40px 32px; text-align: center;
+}
+.permission-overlay.show { display: flex; }
+.permission-icon { font-size: 56px; margin-bottom: 24px; }
+.permission-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 26px; margin-bottom: 12px; }
+.permission-desc { color: var(--muted2); font-size: 14px; line-height: 1.7; margin-bottom: 32px; }
+.btn-allow {
+  width: 100%; background: var(--accent); color: #0d0d0d;
+  border: none; border-radius: 14px; padding: 18px;
+  font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px;
+  cursor: pointer;
+}
+.btn-skip { background: none; border: none; color: var(--muted2); font-size: 13px; margin-top: 14px; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="bg-pulse" id="bg-pulse"></div>
+
+<!-- APP PRINCIPAL -->
+<div class="app" id="main-app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">🦶 <span>Podo</span>métro</div>
+    <div class="status-badge stationary" id="status-badge">
+      <div class="dot"></div>
+      <span id="status-text">En reposo</span>
+    </div>
+  </div>
+
+  <!-- Centro: anillo + contador -->
+  <div class="center">
+    <div class="step-ring">
+      <svg class="ring-svg" viewBox="0 0 200 200">
+        <circle class="ring-track" cx="100" cy="100" r="88"/>
+        <circle class="ring-progress" id="ring-progress" cx="100" cy="100" r="88"
+          stroke-dasharray="553" stroke-dashoffset="553"/>
+      </svg>
+      <div class="ring-center">
+        <div class="step-count" id="step-count">0</div>
+        <div class="step-label">pasos</div>
+        <div class="step-goal" id="step-goal">meta: 10,000</div>
+      </div>
+    </div>
+
+    <!-- Métricas -->
+    <div class="metrics">
+      <div class="metric-card">
+        <div class="metric-val" id="metric-km">0.00</div>
+        <div class="metric-unit">km</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-val" id="metric-cal">0</div>
+        <div class="metric-unit">kcal</div>
+      </div>
+      <div class="metric-card time">
+        <div>
+          <div class="metric-val" id="metric-time">00:00</div>
+          <div class="metric-unit">tiempo activo</div>
+        </div>
+        <span class="metric-icon">⏱</span>
+      </div>
+    </div>
+
+    <!-- Botones -->
+    <div class="btn-wrap" id="btn-wrap">
+      <!-- Estado: inactivo -->
+      <div id="ui-idle">
+        <button class="btn-main start" onclick="startTracking()">
+          <span>▶</span> Iniciar sesión
+        </button>
+      </div>
+
+      <!-- Estado: activo -->
+      <div id="ui-active" style="display:none">
+        <div class="btn-row" style="margin-bottom:10px">
+          <button class="btn-secondary" id="btn-pause" onclick="togglePause()">⏸ Pausar</button>
+          <button class="btn-secondary danger" onclick="confirmStop()">⏹ Terminar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Link historial -->
+    <button style="background:none;border:none;color:var(--muted2);font-size:12px;margin-top:16px;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif;" onclick="openHistory()">
+      Ver sesiones anteriores
+    </button>
+  </div>
+
+</div>
+
+<!-- Panel Historial -->
+<div class="history-panel" id="history-panel">
+  <div class="panel-header">
+    <div class="panel-title">Historial</div>
+    <button class="btn-close" onclick="closeHistory()">✕</button>
+  </div>
+  <div class="history-list" id="history-list"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Overlay permiso acelerómetro (iOS) -->
+<div class="permission-overlay" id="permission-overlay">
+  <div class="permission-icon">📡</div>
+  <div class="permission-title">Permiso de movimiento</div>
+  <p class="permission-desc">Para contar tus pasos necesitamos acceso al sensor de movimiento de tu dispositivo. Solo se usa mientras la app está abierta.</p>
+  <button class="btn-allow" onclick="requestMotionPermission()">Permitir acceso al movimiento</button>
+  <button class="btn-skip" onclick="skipPermission()">Continuar sin sensor (modo demo)</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════
+const GOAL_STEPS   = 10000;
+const SENSITIVITY  = 12;      // umbral acelerómetro para detectar paso
+const COOLDOWN_MS  = 280;     // ms mínimos entre pasos (evita dobles)
+const MAX_WALK_SPD = 3.0;     // m/s → más rápido = vehículo (≈10.8 km/h)
+const MIN_MOVE_SPD = 0.5;     // m/s → más lento = reposo
+const DEMO_INTERVAL= 800;     // ms entre pasos en modo demo
+
+// ═══════════════════════════════════════════════════════
+// ESTADO
+// ═══════════════════════════════════════════════════════
+let profile       = null;
+let isTracking    = false;
+let isPaused      = false;
+let stepCooldown  = false;
+let steps         = 0;
+let startTime     = null;
+let pausedMs      = 0;
+let pauseStart    = null;
+let timerInterval = null;
+let geoWatchId    = null;
+let demoInterval  = null;
+let motionHandler = null;
+let currentStatus = 'stationary'; // stationary | walking | vehicle
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  // Cargar perfil
+  const raw = localStorage.getItem('podometro_profile');
+  if (!raw) { window.location.href = 'index.html'; return; }
+  profile = JSON.parse(raw);
+
+  // Registrar SW
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  updateUI();
+});
+
+// ═══════════════════════════════════════════════════════
+// INICIAR SESIÓN
+// ═══════════════════════════════════════════════════════
+async function startTracking() {
+  // iOS requiere permiso explícito para DeviceMotion
+  if (typeof DeviceMotionEvent !== 'undefined' &&
+      typeof DeviceMotionEvent.requestPermission === 'function') {
+    document.getElementById('permission-overlay').classList.add('show');
+    return;
+  }
+  beginTracking();
+}
+
+async function requestMotionPermission() {
+  document.getElementById('permission-overlay').classList.remove('show');
+  try {
+    const res = await DeviceMotionEvent.requestPermission();
+    if (res === 'granted') beginTracking();
+    else { showToast('Permiso denegado — modo demo activado'); beginDemo(); }
+  } catch(e) { beginDemo(); }
+}
+
+function skipPermission() {
+  document.getElementById('permission-overlay').classList.remove('show');
+  beginDemo();
+}
+
+function beginTracking() {
+  resetSession();
+  isTracking = true;
+  isPaused   = false;
+  startTime  = Date.now();
+
+  // Acelerómetro
+  motionHandler = (e) => {
+    if (!isTracking || isPaused) return;
+    if (currentStatus === 'vehicle') return;
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+    const mag = Math.sqrt(a.x**2 + a.y**2 + a.z**2);
+    if (mag > SENSITIVITY && !stepCooldown) {
+      registerStep();
+      stepCooldown = true;
+      setTimeout(() => stepCooldown = false, COOLDOWN_MS);
+    }
+  };
+  window.addEventListener('devicemotion', motionHandler);
+
+  // GPS para velocidad
+  startGPS();
+
+  // Timer
+  timerInterval = setInterval(updateTimer, 1000);
+
+  // UI
+  document.getElementById('ui-idle').style.display   = 'none';
+  document.getElementById('ui-active').style.display = 'block';
+  document.getElementById('bg-pulse').classList.add('active');
+  setStatus('walking');
+  showToast('¡Sesión iniciada! 🚶');
+}
+
+function beginDemo() {
+  // Modo demo: simula pasos para probar en desktop/sin sensor
+  resetSession();
+  isTracking = true;
+  isPaused   = false;
+  startTime  = Date.now();
+  demoInterval = setInterval(() => {
+    if (!isTracking || isPaused) return;
+    registerStep();
+  }, DEMO_INTERVAL);
+  timerInterval = setInterval(updateTimer, 1000);
+  document.getElementById('ui-idle').style.display   = 'none';
+  document.getElementById('ui-active').style.display = 'block';
+  document.getElementById('bg-pulse').classList.add('active');
+  setStatus('walking');
+  showToast('Modo demo activado 🖥️');
+}
+
+// ═══════════════════════════════════════════════════════
+// GPS — DETECCIÓN DE VELOCIDAD
+// ═══════════════════════════════════════════════════════
+function startGPS() {
+  if (!navigator.geolocation) return;
+  geoWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      const spd = pos.coords.speed; // m/s o null
+      if (spd === null || spd === undefined) return;
+      if (spd < MIN_MOVE_SPD)       setStatus('stationary');
+      else if (spd > MAX_WALK_SPD)  setStatus('vehicle');
+      else                           setStatus('walking');
+    },
+    () => {}, // silenciar error de permiso
+    { enableHighAccuracy: false, timeout: 5000, maximumAge: 3000 }
+  );
+}
+
+function setStatus(s) {
+  currentStatus = s;
+  const badge = document.getElementById('status-badge');
+  const text  = document.getElementById('status-text');
+  badge.className = 'status-badge ' + s;
+  const labels = { stationary: 'En reposo', walking: 'Caminando', vehicle: 'En vehículo 🚗' };
+  text.textContent = labels[s] || 'En reposo';
+}
+
+// ═══════════════════════════════════════════════════════
+// REGISTRAR PASO
+// ═══════════════════════════════════════════════════════
+function registerStep() {
+  steps++;
+  // Animación bump
+  const el = document.getElementById('step-count');
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 100);
+  updateUI();
+}
+
+// ═══════════════════════════════════════════════════════
+// PAUSAR / REANUDAR
+// ═══════════════════════════════════════════════════════
+function togglePause() {
+  isPaused = !isPaused;
+  const btn = document.getElementById('btn-pause');
+  if (isPaused) {
+    pauseStart = Date.now();
+    btn.textContent = '▶ Reanudar';
+    setStatus('stationary');
+    document.getElementById('bg-pulse').classList.remove('active');
+  } else {
+    if (pauseStart) pausedMs += Date.now() - pauseStart;
+    pauseStart = null;
+    btn.textContent = '⏸ Pausar';
+    setStatus('walking');
+    document.getElementById('bg-pulse').classList.add('active');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// TERMINAR SESIÓN
+// ═══════════════════════════════════════════════════════
+function confirmStop() {
+  if (steps === 0) { stopTracking(false); return; }
+  if (confirm(`¿Terminar sesión?\n\n${steps} pasos registrados`)) stopTracking(true);
+}
+
+function stopTracking(save = true) {
+  isTracking = false;
+  isPaused   = false;
+
+  // Limpiar listeners y timers
+  if (motionHandler) window.removeEventListener('devicemotion', motionHandler);
+  if (demoInterval)  clearInterval(demoInterval);
+  if (timerInterval) clearInterval(timerInterval);
+  if (geoWatchId !== null) navigator.geolocation.clearWatch(geoWatchId);
+
+  motionHandler = null; demoInterval = null;
+  timerInterval = null; geoWatchId = null;
+
+  if (save && steps > 0) saveSession();
+
+  // Reset UI
+  document.getElementById('ui-idle').style.display   = 'block';
+  document.getElementById('ui-active').style.display = 'none';
+  document.getElementById('bg-pulse').classList.remove('active');
+  setStatus('stationary');
+
+  if (save && steps > 0) {
+    showToast(`Sesión guardada: ${steps} pasos ✅`);
+    resetSession();
+  } else {
+    resetSession();
+  }
+}
+
+function resetSession() {
+  steps     = 0;
+  startTime = null;
+  pausedMs  = 0;
+  pauseStart= null;
+  updateUI();
+}
+
+// ═══════════════════════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════════════════════
+function updateTimer() {
+  if (!startTime || !isTracking) return;
+  const extra = (pauseStart ? Date.now() - pauseStart : 0);
+  const elapsed = Math.floor((Date.now() - startTime - pausedMs - extra) / 1000);
+  const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+  const s = String(elapsed % 60).padStart(2,'0');
+  document.getElementById('metric-time').textContent = `${m}:${s}`;
+}
+
+// ═══════════════════════════════════════════════════════
+// ACTUALIZAR UI
+// ═══════════════════════════════════════════════════════
+function updateUI() {
+  if (!profile) return;
+  // stepLengthM viene en metros (ej: 0.70), dividimos entre 1000 para km
+  const stepM = profile.stepLengthM || 0.0070;
+  const kcal  = Math.round(steps * 0.04);
+
+  document.getElementById('step-count').textContent = steps.toLocaleString('es');
+  document.getElementById('metric-km').textContent  = (steps * stepM / 1000 * 1000).toFixed(2); // pasos × metros
+  document.getElementById('metric-cal').textContent = kcal;
+
+  // Anillo de progreso
+  const pct    = Math.min(steps / GOAL_STEPS, 1);
+  const circum = 2 * Math.PI * 88; // 553
+  const offset = circum - pct * circum;
+  document.getElementById('ring-progress').style.strokeDashoffset = offset;
+
+  // Color del anillo según progreso
+  const ring = document.getElementById('ring-progress');
+  if (pct >= 1)       ring.style.stroke = '#60f0c8';
+  else if (pct >= 0.5) ring.style.stroke = '#c8f060';
+  else                 ring.style.stroke = '#c8f060';
+
+  // Meta
+  const remaining = Math.max(0, GOAL_STEPS - steps);
+  document.getElementById('step-goal').textContent =
+    pct >= 1 ? '🎉 ¡Meta alcanzada!' : `${remaining.toLocaleString('es')} para la meta`;
+}
+
+// ═══════════════════════════════════════════════════════
+// GUARDAR SESIÓN EN HISTORIAL
+// ═══════════════════════════════════════════════════════
+function saveSession() {
+  const stepM   = profile.stepLengthM || 0.007;
+  const elapsed = startTime ? Math.floor((Date.now() - startTime - pausedMs) / 1000) : 0;
+  const session = {
+    id:    Date.now(),
+    date:  new Date().toISOString(),
+    steps,
+    km:    +(steps * stepM).toFixed(2),    kcal:  Math.round(steps * 0.04),
+    secs:  elapsed
+  };
+
+  const raw      = localStorage.getItem('podometro_history');
+  const history  = raw ? JSON.parse(raw) : [];
+  history.unshift(session);
+  // Guardar máximo 60 sesiones
+  localStorage.setItem('podometro_history', JSON.stringify(history.slice(0, 60)));
+}
+
+// ═══════════════════════════════════════════════════════
+// HISTORIAL
+// ═══════════════════════════════════════════════════════
+function openHistory() {
+  renderHistory();
+  document.getElementById('history-panel').classList.add('open');
+}
+function closeHistory() {
+  document.getElementById('history-panel').classList.remove('open');
+}
+
+function renderHistory() {
+  const raw     = localStorage.getItem('podometro_history');
+  const history = raw ? JSON.parse(raw) : [];
+  const list    = document.getElementById('history-list');
+
+  if (history.length === 0) {
+    list.innerHTML = `<div class="history-empty"><span class="icon">🦶</span>Aún no hay sesiones guardadas.<br>¡Empieza a caminar!</div>`;
+    return;
+  }
+
+  list.innerHTML = history.map((s, i) => {
+    const d    = new Date(s.date);
+    const date = d.toLocaleDateString('es', { weekday:'long', day:'numeric', month:'short' });
+    const time = d.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' });
+    const dur  = s.secs ? `${Math.floor(s.secs/60)}m ${s.secs%60}s` : '—';
+    return `
+      <div class="session-card" style="animation-delay:${i*0.05}s">
+        <div class="session-top">
+          <div>
+            <div class="session-date">${date} · ${time}</div>
+            <div class="session-steps">${s.steps.toLocaleString('es')}<span>pasos</span></div>
+          </div>
+        </div>
+        <div class="session-meta">
+          <div class="session-meta-item"><strong>${s.km}</strong>km</div>
+          <div class="session-meta-item"><strong>${s.kcal}</strong>kcal</div>
+          <div class="session-meta-item"><strong>${dur}</strong>duración</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════
+let toastTimeout = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Evitar cierre accidental con botón atrás en Android
+window.addEventListener('popstate', (e) => {
+  if (document.getElementById('history-panel').classList.contains('open')) {
+    closeHistory(); history.pushState(null, '');
+  }
+});
+history.pushState(null, '');
+</script>
+</body>
+</html>

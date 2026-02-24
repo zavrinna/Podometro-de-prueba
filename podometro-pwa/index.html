@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Podómetro</title>
+<link rel="stylesheet" href="style.css">
+
+<!-- PWA Meta Tags -->
+<meta name="theme-color" content="#0d0d0d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Podómetro">
+<meta name="description" content="Cuenta tus pasos y kilómetros recorridos">
+
+<!-- Apple Touch Icons -->
+<link rel="apple-touch-icon" href="icons/icon-152x152.png">
+<link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192x192.png">
+
+<!-- Manifest -->
+<link rel="manifest" href="manifest.json">
+
+<!-- Splash screen color -->
+<meta name="msapplication-TileColor" content="#0d0d0d">
+<meta name="msapplication-TileImage" content="icons/icon-144x144.png">
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- PASO 1: Sexo -->
+  <div class="step active" id="step-sex">
+    <div class="logo">🦶 <span>Podo</span>métro</div>
+    <div class="progress-dots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <p class="step-label">Paso 1 de 2</p>
+    <h2>¿Cuál es tu<br>sexo biológico?</h2>
+    <p class="subtitle">La longitud de la zancada varía según el sexo. Esto mejora la precisión del conteo.</p>
+
+    <div class="sex-grid">
+      <button class="sex-btn" id="btn-male" onclick="selectSex('male')">
+        <span class="icon">♂️</span>
+        <span class="label">Masculino</span>
+        <span class="stride">Zancada: ~78 cm</span>
+      </button>
+      <button class="sex-btn" id="btn-female" onclick="selectSex('female')">
+        <span class="icon">♀️</span>
+        <span class="label">Femenino</span>
+        <span class="stride">Zancada: ~70 cm</span>
+      </button>
+    </div>
+
+    <p class="error-msg" id="error-sex">Por favor selecciona una opción para continuar.</p>
+    <button class="btn-primary" onclick="goToHeight()">Continuar →</button>
+  </div>
+
+  <!-- PASO 2: Altura -->
+  <div class="step" id="step-height">
+    <div class="logo">🦶 <span>Podo</span>métro</div>
+    <div class="progress-dots">
+      <div class="dot done"></div>
+      <div class="dot active"></div>
+      <div class="dot"></div>
+    </div>
+    <p class="step-label">Paso 2 de 2 — Opcional</p>
+    <h2>¿Cuánto<br>mides?</h2>
+    <p class="subtitle">Con tu altura calculamos tu zancada exacta. Si no, usamos el promedio de tu sexo.</p>
+
+    <div class="height-section">
+      <div class="height-toggle" onclick="toggleHeight()">
+        <div class="height-toggle-text">
+          <div class="title">Ingresar mi altura</div>
+          <div class="desc">Más precisión en el cálculo</div>
+        </div>
+        <div class="toggle-switch" id="toggle-sw"></div>
+      </div>
+      <div class="height-input-wrap" id="height-input-wrap">
+        <div class="height-row">
+          <input type="number" class="height-field" id="height-field"
+            placeholder="170" min="100" max="220"
+            oninput="onHeightInput(this.value)" inputmode="numeric">
+          <span class="height-unit">cm</span>
+        </div>
+        <div class="height-slider-wrap">
+          <input type="range" id="height-slider" min="100" max="220" value="170"
+            oninput="syncSlider(this.value)">
+          <div class="height-range-labels"><span>100 cm</span><span>220 cm</span></div>
+        </div>
+        <p class="error-msg" id="error-height">Ingresa una altura válida (100–220 cm).</p>
+      </div>
+      <div class="stride-preview" id="stride-preview">
+        <span class="icon">👟</span>
+        <span class="text">Tu zancada estimada</span>
+        <span class="value" id="stride-value">— <span>cm</span></span>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="goToConfirm()">Ver resumen →</button>
+    <button class="btn-link" onclick="showStep('step-sex')">← Volver</button>
+  </div>
+
+  <!-- PASO 3: Confirmación -->
+  <div class="step" id="step-confirm">
+    <div class="logo">🦶 <span>Podo</span>métro</div>
+    <div class="progress-dots">
+      <div class="dot done"></div>
+      <div class="dot done"></div>
+      <div class="dot active"></div>
+    </div>
+    <div class="success-icon">✓</div>
+    <p class="step-label">Todo listo</p>
+    <h2>Tu perfil<br>está configurado</h2>
+    <p class="subtitle" style="margin-bottom: 28px;">Esto es lo que guardamos para calcular tus datos:</p>
+
+    <div class="confirm-card">
+      <div class="confirm-row">
+        <span class="confirm-label">Sexo biológico</span>
+        <span class="confirm-value" id="summary-sex">—</span>
+      </div>
+      <div class="confirm-row">
+        <span class="confirm-label">Altura</span>
+        <span class="confirm-value" id="summary-height">—</span>
+      </div>
+      <div class="confirm-row">
+        <span class="confirm-label">Zancada por paso</span>
+        <span class="confirm-value highlight" id="summary-stride">—</span>
+      </div>
+      <div class="confirm-row">
+        <span class="confirm-label">Método</span>
+        <span class="confirm-value" id="summary-method">—</span>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="saveAndStart()">Empezar a caminar 🚶</button>
+    <button class="btn-link" onclick="showStep('step-height')">← Editar</button>
+  </div>
+
+</div>
+
+<!-- Banner de instalación PWA (Android Chrome) -->
+<div id="install-banner">
+  <div class="text">
+    <strong>Instalar en tu celular</strong>
+    <small>Funciona sin conexión</small>
+  </div>
+  <button class="btn-install" onclick="installApp()">Instalar</button>
+  <button class="btn-close" onclick="closeBanner()">✕</button>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
