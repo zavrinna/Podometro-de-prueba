@@ -2,7 +2,7 @@
 
 Aplicación web progresiva que detecta pasos utilizando el acelerómetro del dispositivo y estima la distancia recorrida en función de la zancada del usuario.
 
-🎯 Objetivo
+Objetivo
 
 Demostrar implementación frontend de:
 
@@ -12,7 +12,7 @@ Demostrar implementación frontend de:
 - Personalización de cálculo de zancada
 - Implementación básica de PWA
 
-⚙️ Cómo funciona
+Cómo funciona
 
 - Se captura la aceleración en los ejes X, Y y Z.
 
@@ -27,7 +27,7 @@ La distancia se calcula como:
 - pasos × longitud_zancada
 - Se valida velocidad GPS < 3m/s para evitar conteo en vehículo.
 
-📏 Cálculo de zancada
+Cálculo de zancada
 
 - Promedio por sexo biológico.
 - Ajuste opcional basado en altura.
@@ -36,7 +36,7 @@ Fórmula estimada:
 
 - altura × factor
 
-⚠️ Limitaciones
+Limitaciones
 
 - No funciona en segundo plano debido a restricciones del navegador.
 - Depende de permisos de sensores y GPS.
@@ -44,13 +44,14 @@ Fórmula estimada:
 - Cooldown fijo puede no adaptarse a carrera intensa.
 - No implementa análisis de frecuencia avanzada ni ML.
 
-🚀 Mejoras futuras
+Mejoras futuras
 
 - Cooldown dinámico según ritmo.
 - Detección basada en frecuencia en lugar de solo umbral.
 - Persistencia diaria de datos.
 - Exportación de historial.
 - Conversión a app híbrida para ejecución en background.
+- Eliminar la opción de seleccionar sexo biológico para evitar sesgos y solo implementar la formula usando solo la altura.
 
 
 "Decidí no usar una librería de detección de pasos porque mi objetivo principal era comprender el problema desde la base.
